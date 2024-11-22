@@ -1,32 +1,35 @@
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::Window,
-};
+use vertex_data::{cube_normals, cube_positions};
 
-fn main() {
-    let instances = wgpu::Instance::new(wgpu::InstanceDescriptor{
-        backends:wgpu::Backends::all(),
-        dx12_shader_compiler: Default::default(),
-    });
 
-    for adapter in instances.enumerate_adapters(wgpu::Backends::all()) {
-        println!("{:?}", adapter.get_info())
+
+mod common;
+mod vertex_data;
+
+fn create_sphere(r: f32, u:usize, v: usize) -> Vec<common::Vertex> {
+    let(pos, normal, _uvs) = vertex_data::sphere_data(r, u, v);
+    let mut data:Vec<common::Vertex> = Vec::with_capacity(pos.len());
+    for i in 0..pos.len() {
+        data.push(common::vertex(pos[i], normal[i]));
     }
+    data.to_vec()
+}
+fn create_cube() -> Vec<common::Vertex> {
+    let pos = cube_positions();
+    let normal = cube_normals();
+    let mut data:Vec<common::Vertex> = Vec::with_capacity(pos.len());
+    for i in 0..pos.len() {
+        data.push(common::vertex(pos[i], normal[i]));
+    }
+    data.to_vec()
+}
 
-    let event_loop = EventLoop::new();
-    let window = Window::new(&event_loop).unwrap();
-    window.set_title("my window");
-    env_logger::init();
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            _ => {}
-        }
-    });
+fn main(){
+    let mut vertex_datas = Vec::new();
+    let sphere_data1 = create_sphere(1.5, 15, 20);
+    let cube_data = create_cube();
+    vertex_datas.push(sphere_data1);
+    vertex_datas.push(cube_data);
+    let light_data = common::light([1.0,0.0,0.0], [1.0, 1.0, 1.0], 0.1, 0.6, 0.3, 30.0);
+    common::run(&vertex_datas, light_data, "Bowling");
 }
