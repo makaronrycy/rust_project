@@ -9,11 +9,14 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 use bytemuck:: {Pod, Zeroable, cast_slice};
-
-
+use cgmath::prelude::*;
 #[path="../src/transforms.rs"]
 mod transforms;
-
+#[path ="../src/model.rs"]
+mod model;
+#[path ="../src/resources.rs"]
+mod resources;
+use model::{Vertex,Instance,InstanceRaw};
 const ANIMATION_SPEED:f32 = 1.0;
 const IS_PERSPECTIVE:bool = true;
 
@@ -39,7 +42,7 @@ pub fn light(c:[f32; 3], sc:[f32;3], ai: f32, di: f32, si: f32, ss: f32) -> Ligh
     }
 }
 
-#[repr(C)]
+/*#[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Vertex {
     pub position: [f32; 4],
@@ -63,7 +66,7 @@ impl Vertex {
             attributes: &Self::ATTRIBUTES,
         }
     }
-}
+}*/
 pub struct Object{
     pub vertex_buffer: wgpu::Buffer,
     pub len: u32,
@@ -77,19 +80,23 @@ struct State {
     pipeline: wgpu::RenderPipeline,
     view_mat: Matrix4<f32>,
     project_mat: Matrix4<f32>,
-    objects: Vec<Object>
+    objects: Vec<Object>,
+    instances: Vec<Instance>,
+    instance_buffer: wgpu::Buffer,
 }
 
 impl State {
-    async fn new(window: &Window, vertex_datas: &Vec<Vec<Vertex>>, light_data: Light) -> Self {        
+    async fn new(window: &Window, vertex_datas: &Vec<Vertex>) -> Self {        
         let init =  transforms::InitWgpu::init_wgpu(window).await;
-
+        let light_data = light([1.0,0.0,0.0], [1.0, 1.0, 1.0], 0.1, 0.6, 0.3, 30.0);
         let shader = init.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
             //source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),"/examples/ch06/line3d.wgsl")).into()),
         });
-        
+        const NUM_INSTANCES_PER_ROW: u32 = 10;
+        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
+
         // uniform data
         let camera_position = (3.0, 1.5, 3.0).into();
         let look_direction = (0.0,0.0,0.0).into();
@@ -97,9 +104,33 @@ impl State {
         
         let (view_mat, project_mat, _) = transforms::create_view_projection(camera_position, look_direction, up_direction, 
             init.config.width as f32 / init.config.height as f32, IS_PERSPECTIVE);
-        
-        
-       
+        //create instances
+        let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
+            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                let position = cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 } - INSTANCE_DISPLACEMENT;
+
+                let rotation = if position.is_zero() {
+                    // this is needed so an object at (0, 0, 0) won't get scaled to zero
+                    // as Quaternions can affect scale if they're not created correctly
+                    cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
+                } else {
+                    cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+                };
+
+                Instance {
+                    position, rotation,
+                }
+            })
+        }).collect::<Vec<_>>();
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_buffer = init.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Instance Buffer"),
+                contents: bytemuck::cast_slice(&instance_data),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+             
         // create fragment uniform buffer. here we set eye_position = camera_position and light_position = eye_position
         let fragment_uniform_buffer = init.device.create_buffer(&wgpu::BufferDescriptor{
             label: Some("Fragment Uniform Buffer"),
@@ -174,7 +205,8 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+                //buffers: &[Vertex::desc()],
+                buffers: &[model::ModelVertex::desc(), InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -254,7 +286,8 @@ impl State {
             pipeline,
             view_mat,
             project_mat,
-            objects
+            objects,
+            
         }
     }
 
@@ -369,13 +402,13 @@ impl State {
     }
 }
 //TODO: change vertex_data to an array of objects
-pub fn run(vertex_datas: &Vec<Vec<Vertex>>, light_data: Light, title: &str) {
+pub fn run(vertex_datas: &Vec<Vertex>, title: &str) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = winit::window::WindowBuilder::new().build(&event_loop).unwrap();
     window.set_title(title);
 
-    let mut state = pollster::block_on(State::new(&window, &vertex_datas, light_data));    
+    let mut state = pollster::block_on(State::new(&window, &vertex_datas));    
     let render_start_time: std::time::Instant = std::time::Instant::now();
 
     event_loop.run(move |event, _, control_flow| {

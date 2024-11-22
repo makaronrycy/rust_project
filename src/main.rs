@@ -4,7 +4,7 @@ use vertex_data::{cube_normals, cube_positions};
 
 mod common;
 mod vertex_data;
-
+/* 
 fn create_sphere(r: f32, u:usize, v: usize) -> Vec<common::Vertex> {
     let(pos, normal, _uvs) = vertex_data::sphere_data(r, u, v);
     let mut data:Vec<common::Vertex> = Vec::with_capacity(pos.len());
@@ -22,14 +22,17 @@ fn create_cube() -> Vec<common::Vertex> {
     }
     data.to_vec()
 }
-
+*/
 
 fn main(){
+    
     let mut vertex_datas = Vec::new();
+    /*
     let sphere_data1 = create_sphere(1.5, 15, 20);
     let cube_data = create_cube();
+     
     vertex_datas.push(sphere_data1);
     vertex_datas.push(cube_data);
-    let light_data = common::light([1.0,0.0,0.0], [1.0, 1.0, 1.0], 0.1, 0.6, 0.3, 30.0);
-    common::run(&vertex_datas, light_data, "Bowling");
+   */
+    common::run(&vertex_datas, "Bowling");
 }
