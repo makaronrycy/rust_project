@@ -37,11 +37,10 @@ pub async fn load_model(
     file_name: &str,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    layout: &wgpu::BindGroupLayout,
 ) -> anyhow::Result<model::Model> {
     let obj_text = load_string(file_name).await?;
     let obj_cursor = Cursor::new(obj_text);
-    let mut obj_reader = BufReader::new(obj_cursor);
+    let mut obj_reader: BufReader<Cursor<String>> = BufReader::new(obj_cursor);
 
     let (models, obj_materials) = tobj::load_obj_buf_async(
         &mut obj_reader,
@@ -61,25 +60,10 @@ pub async fn load_model(
     let mut materials = Vec::new();
     for m in obj_materials? {
         let diffuse_texture = load_texture(&m.diffuse_texture, device, queue).await?;
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-            label: None,
-        });
-
         materials.push(model::Material {
             name: m.name,
             diffuse_texture,
-            bind_group,
+            
         })
     }
 
@@ -140,22 +124,42 @@ pub async fn load_model(
 
     Ok(model::Model { meshes, materials })
 }
-pub fn update_instance_buffer(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    instances: &[Instance],
-) -> wgpu::Buffer {
-    let instance_data: Vec<_> = instances.iter().map(Instance::to_raw).collect();
-    let instance_buffer = device.create_buffer_init(
-        &wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX| wgpu::BufferUsages::COPY_DST,
-        }
-    );
 
-    // If the buffer needs to be updated frequently, write to the queue
-    queue.write_buffer(&instance_buffer, 0, bytemuck::cast_slice(&instance_data));
-    
-    instance_buffer
+pub struct UniformPool {
+    label: &'static str,
+    pub buffers: Vec<wgpu::Buffer>,
+    size: u64,
+}
+
+impl UniformPool {
+    pub fn new(label: &'static str, size: u64) -> Self {
+        Self {
+            label,
+            buffers: Vec::new(),
+            size,
+        }
+    }
+
+    pub fn alloc_buffers(&mut self, count: usize, device: &wgpu::Device) {
+        // We reset the buffers each time we allocate
+        // TODO: Ideally we should keep track of the object it belongs to,
+        // so we can add/remove objects (and their uniform buffers) dynamically
+        self.buffers = Vec::new();
+
+        for _ in 0..count {
+            let local_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&self.label),
+                size: self.size,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.buffers.push(local_uniform_buffer);
+        }
+    }
+
+    pub fn update_uniform<T: bytemuck::Pod>(&self, index: usize, data: T, queue: &wgpu::Queue) {
+        if &self.buffers.len() > &0 {
+            queue.write_buffer(&self.buffers[index], 0, bytemuck::cast_slice(&[data]));
+        }
+    }
 }

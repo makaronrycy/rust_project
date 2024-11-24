@@ -128,7 +128,7 @@ impl CameraController {
         }
     }
 
-    fn update_camera(&self, camera: &mut Camera) {
+    pub fn update_camera(&self, camera: &mut Camera) {
         let forward = camera.target - camera.eye;
         let forward_norm = forward.normalize();
         let forward_mag = forward.magnitude();
