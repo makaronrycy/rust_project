@@ -36,7 +36,7 @@ mod camera;
 mod phys;
 use resources::model::{texture::Texture, DrawModel,DrawLight,Instance, InstanceRaw, Model, ModelVertex, Vertex,Object,Globals,Locals};
 use resources::{UniformPool};
-use camera::{CameraController,Camera,CameraUniform};
+use camera::{Camera, CameraController, CameraUniform, Projection};
 const ANIMATION_SPEED:f32 = 1.0;
 
 #[repr(C)]
@@ -68,7 +68,8 @@ struct State<'a> {
     global_uniform_buffer: wgpu::Buffer,
     instance_buffers: HashMap<usize, wgpu::Buffer>,
     mouse_pressed: bool,
-    physics: phys::Physics
+    physics: phys::Physics,
+    projection: Projection,
 }
 impl <'a>State <'a>{
     
@@ -79,15 +80,20 @@ impl <'a>State <'a>{
             label: Some("Normal Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
-        let camera = Camera::new(
-            (0.0, 2.0, -3.0).into(),
-            (0.0, 0.0, 0.0).into(),
-            cgmath::Vector3::unit_y(),
-            init.config.width as f32 / init.config.height as f32,
-            75.0,
-            0.1,
-            100.0,);
-        let camera_controller = CameraController::new(0.2);
+          let camera = camera::Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
+          let projection =
+              camera::Projection::new(init.config.width, init.config.height, cgmath::Deg(45.0), 0.1, 100.0);
+          let camera_controller = camera::CameraController::new(4.0, 0.4);
+  
+          let mut camera_uniform = CameraUniform::new();
+          camera_uniform.update_view_proj(&camera, &projection);
+  
+          let camera_buffer = init.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+              label: Some("Camera Buffer"),
+              contents: bytemuck::cast_slice(&[camera_uniform]),
+              usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+          });
+  
         // Setup global uniforms
         // Global bind group layout
         let light_size = mem::size_of::<LightUniform>() as wgpu::BufferAddress;
@@ -266,9 +272,6 @@ impl <'a>State <'a>{
         let depth_texture =
             Texture::create_depth_texture(&init.device, &init.config, "depth_texture");
 
-        // Setup camera uniform
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
 
         let light_shader = init.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Light Shader"),
@@ -364,6 +367,7 @@ impl <'a>State <'a>{
             instance_buffers,
             mouse_pressed: false,
             physics,
+            projection
         }
     }
     pub fn window(&self) -> &Window {
@@ -371,10 +375,10 @@ impl <'a>State <'a>{
     }
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            self.projection.resize(new_size.width, new_size.height);
             self.init.config.width = new_size.width;
             self.init.config.height = new_size.height;
             self.init.size = new_size;
-            self.camera.aspect = self.init.config.width as f32 / self.init.config.height as f32;
             self.init.surface.configure(&self.init.device, &self.init.config);
             self.depth_texture =
                 Texture::create_depth_texture(&self.init.device, &self.init.config, "depth_texture");
@@ -393,8 +397,11 @@ impl <'a>State <'a>{
                         ..
                     },
                 ..
-            } => self.camera_controller.process_events( &state,&key,),
-       
+            } => self.camera_controller.process_keyboard(*key, *state),
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.camera_controller.process_scroll(delta);
+                true
+            }
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
                 state,
@@ -406,42 +413,12 @@ impl <'a>State <'a>{
             _ => false,
         }
     }
-
-    pub fn keyboard(&mut self, state: ElementState, keycode: &KeyCode) -> bool {
-        // Send any input to camera controller
-        self.camera_controller.process_events(&state, &keycode)
-
-        // match event {
-        //     WindowEvent::CursorMoved { position, .. } => {
-        //         self.clear_color = wgpu::Color {
-        //             r: 0.0,
-        //             g: position.y as f64 / self.size.height as f64,
-        //             b: position.x as f64 / self.size.width as f64,
-        //             a: 1.0,
-        //         };
-        //         true
-        //     }
-        //     _ => false,
-        // }
+    fn fixed_update(&mut self){
+        self.physics.simulate();
     }
-
-    pub fn mouse_moved(&mut self, position: &PhysicalPosition<f64>) {
-        self.camera_controller
-            .process_mouse_moved(&position, &self.init.size);
-    }
-    pub fn mouse_input(
-        &mut self,
-        device_id: &DeviceId,
-        state: &ElementState,
-        button: &MouseButton,
-    ) {
-        self.camera_controller
-            .process_mouse_input(device_id, state, button);
-    }
-
     fn update(&mut self, dt: std::time::Duration) {
-        self.camera_controller.update_camera(&mut self.camera);
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.camera_controller.update_camera(&mut self.camera,dt);
+        self.camera_uniform.update_view_proj(&self.camera,&self.projection);
         self.init.queue.write_buffer(
             &self.global_uniform_buffer,
             0,
@@ -460,7 +437,7 @@ impl <'a>State <'a>{
                 
             obj_index += 1;
         }
-        self.physics.simulate();
+        
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -597,8 +574,9 @@ pub fn run(title: &str) {
     window.set_title(title);
 
     let mut state = pollster::block_on(State::new(&window));    
-    let render_start_time: std::time::Instant = std::time::Instant::now();
-
+    let mut last_render_time: std::time::Instant = std::time::Instant::now();
+    let mut last_physics_sim: std::time::Instant = std::time::Instant::now();
+    let mut dtphysics = std::time::Instant::now() - last_physics_sim;
 
     event_loop.run(move |event, control_flow: &winit::event_loop::EventLoopWindowTarget<()>| {
         match event {
@@ -606,7 +584,7 @@ pub fn run(title: &str) {
                 event: DeviceEvent::MouseMotion{ delta, },
                 .. // We're not using device_id currently
             } => if state.mouse_pressed {
-                //state.camera_controller.process_mouse_moved(delta.0, delta.1)
+                state.camera_controller.process_mouse(delta.0, delta.1)
             }
             
             Event::WindowEvent {
@@ -615,6 +593,7 @@ pub fn run(title: &str) {
             } if window_id == state.window.id() => {
                 if !state.input(event) {
                     match event {
+                        
                         WindowEvent::CloseRequested
                         //Keyboard events
                         | WindowEvent::KeyboardInput {
@@ -633,8 +612,16 @@ pub fn run(title: &str) {
                         }
                         WindowEvent::RedrawRequested => {
                             let now = std::time::Instant::now();
-                            let dt = now - render_start_time;
+                            let dt = now - last_render_time;
+                            if(dtphysics.as_secs_f32()> 0.02){
+                                state.fixed_update();
+                                last_physics_sim = now;
+                            } else{
+                                dtphysics = now - last_physics_sim;
+                            }
+                            last_render_time = now;
                             state.update(dt);
+                            
                             
                             state.window().request_redraw();
                             match state.render() {
