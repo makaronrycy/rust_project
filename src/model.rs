@@ -1,6 +1,9 @@
 #[path ="../src/texture.rs"]
 pub mod texture;
 use std::ops::Range;
+
+use cgmath::Vector3;
+use cgmath::prelude::*;
 pub trait Vertex {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
@@ -42,6 +45,7 @@ impl Vertex for ModelVertex {
 pub struct Instance {
     pub position: cgmath::Vector3<f32>,
     pub rotation: cgmath::Quaternion<f32>,
+    pub scale: cgmath::Vector3<f32>
 }
 
 #[repr(C)]
@@ -109,12 +113,22 @@ impl Vertex for InstanceRaw {
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
         let model =
-            cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation);
+            cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation)*cgmath::Matrix4::from_nonuniform_scale(self.scale.x,self.scale.y,self.scale.z);
         InstanceRaw {
             model: model.into(),
             // NEW!
             normal: cgmath::Matrix3::from(self.rotation).into(),
         }
+    }
+    pub fn translate(&mut self, translation: Vector3<f32>){
+        self.position += translation;
+    }
+    pub fn rotate(&mut self, axis: Vector3<f32>, angle_rad: f32) {
+        let rotation = cgmath::Quaternion::from_axis_angle(axis.normalize(), cgmath::Rad(angle_rad));
+        self.rotation = rotation * self.rotation;
+    }
+    pub fn set_scale(&mut self, scale: cgmath::Vector3<f32>) {
+        self.scale = scale;
     }
 }
 pub struct Model {
