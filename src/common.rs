@@ -1,12 +1,14 @@
 use std::default;
 //source: https://github.com/jack1232/wgpu11
 use std:: {iter, mem ,collections::HashMap};
-use cgmath::{ Matrix, Matrix4, SquareMatrix, Vector3 };
+use cgmath::{ Matrix, Matrix4, Quaternion, SquareMatrix, Vector3 };
 use cgmath::prelude::*;
 
 
 use wgpu::util::DeviceExt;
 use wgpu::BindGroupLayout;
+use winit::dpi::PhysicalPosition;
+use winit::keyboard;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -30,6 +32,8 @@ mod resources;
 #[path="../src/camera.rs"]
 mod camera;
 
+#[path="../src/phys.rs"]
+mod phys;
 use resources::model::{texture::Texture, DrawModel,DrawLight,Instance, InstanceRaw, Model, ModelVertex, Vertex,Object,Globals,Locals};
 use resources::{UniformPool};
 use camera::{CameraController,Camera,CameraUniform};
@@ -63,25 +67,24 @@ struct State<'a> {
     camera_uniform: CameraUniform,
     global_uniform_buffer: wgpu::Buffer,
     instance_buffers: HashMap<usize, wgpu::Buffer>,
+    mouse_pressed: bool,
+    physics: phys::Physics
 }
 impl <'a>State <'a>{
     
     async fn new(window: &'a Window) -> Self {        
         let init =  context::InitWgpu::init_wgpu(window).await;
-
-        const NUM_INSTANCES_PER_ROW: u32 = 10;
-        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
-
+        const NUMBER_OF_PINS: i32 = 10;
         let shader_module = init.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Normal Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
         let camera = Camera::new(
-            (0.0, 5.0, -10.0).into(),
+            (0.0, 2.0, -3.0).into(),
             (0.0, 0.0, 0.0).into(),
             cgmath::Vector3::unit_y(),
             init.config.width as f32 / init.config.height as f32,
-            45.0,
+            75.0,
             0.1,
             100.0,);
         let camera_controller = CameraController::new(0.2);
@@ -302,53 +305,42 @@ impl <'a>State <'a>{
                 multiview: None,
             });
 
+
+        //Physics
+        let mut physics = phys::Physics::new();
+        physics.build_colliders();
+
         let uniform_pool = UniformPool::new("[Phong] Locals", local_size);
         let mut objects: Vec<Object> =  Vec::new();
+
+
+
         //creating objects
         let ball_model =
             resources::load_model("ball.obj", &init.device, &init.queue)
                 .await
                 .unwrap();
 
-        const SPACE_BETWEEN: f32 = 3.0;
         
         let pin_model =
             resources::load_model("pin.obj", &init.device, &init.queue)
                 .await
                 .unwrap();
-        let ball_instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
-            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                let position = cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 } - INSTANCE_DISPLACEMENT;
+            
+        let mut ball_instances = Vec::new();
+        ball_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:1.0},rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:5.0,y:5.0,z:5.0}}});
+        let pin_instances = (0..NUMBER_OF_PINS)
+        .map(|i| {
+            let position = cgmath::Vector3{x: (i%4) as f32 * 0.6 - (i/4) as f32 *0.3, y:0.0, z: (i/4) as f32 * -0.8 + 10.0};
 
-                let rotation = if position.is_zero() {
-                    // this is needed so an object at (0, 0, 0) won't get scaled to zero
-                    // as Quaternions can affect scale if they're not created correctly
-                    cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-                } else {
-                    cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-                };
-                let scale = cgmath::Vector3 { x: (1.0), y: (1.0), z: (1.0) };
+            let rotation = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0));
 
-                Instance {
-                    position, rotation,scale
-                }
-            })
-        }).collect::<Vec<_>>();
-        let pin_instances = (0..2)
-    .map(|z| {
-        let z = SPACE_BETWEEN * (z as f32);
-        let position = cgmath::Vector3 { x: z, y: 1.0, z };
-        let rotation = if position.is_zero() {
-            cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-        } else {
-            cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-        };
-        let scale = cgmath::Vector3 { x: (1.0), y: (1.0), z: (1.0) };
-        Instance { position, rotation,scale }
-    })
-    .collect::<Vec<_>>();
-objects.push(Object::new(ball_model, ball_instances,String::from("Ball")));
-objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
+            let scale = cgmath::Vector3 { x: (5.0), y: (5.0), z: (5.0) };
+            Instance { position, rotation,scale }
+        })
+        .collect::<Vec<_>>();
+        objects.push(Object::new(ball_model, ball_instances,String::from("Ball")));
+        objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
 
 
         println!("{}", objects.len());
@@ -369,7 +361,9 @@ objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
             camera_controller,
             camera_uniform,
             global_uniform_buffer,
-            instance_buffers
+            instance_buffers,
+            mouse_pressed: false,
+            physics,
         }
     }
     pub fn window(&self) -> &Window {
@@ -390,7 +384,59 @@ objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
 
     #[allow(unused_variables)]
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(key),
+                        state,
+                        ..
+                    },
+                ..
+            } => self.camera_controller.process_events( &state,&key,),
+       
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state,
+                ..
+            } => {
+                self.mouse_pressed = *state == ElementState::Pressed;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn keyboard(&mut self, state: ElementState, keycode: &KeyCode) -> bool {
+        // Send any input to camera controller
+        self.camera_controller.process_events(&state, &keycode)
+
+        // match event {
+        //     WindowEvent::CursorMoved { position, .. } => {
+        //         self.clear_color = wgpu::Color {
+        //             r: 0.0,
+        //             g: position.y as f64 / self.size.height as f64,
+        //             b: position.x as f64 / self.size.width as f64,
+        //             a: 1.0,
+        //         };
+        //         true
+        //     }
+        //     _ => false,
+        // }
+    }
+
+    pub fn mouse_moved(&mut self, position: &PhysicalPosition<f64>) {
+        self.camera_controller
+            .process_mouse_moved(&position, &self.init.size);
+    }
+    pub fn mouse_input(
+        &mut self,
+        device_id: &DeviceId,
+        state: &ElementState,
+        button: &MouseButton,
+    ) {
+        self.camera_controller
+            .process_mouse_input(device_id, state, button);
     }
 
     fn update(&mut self, dt: std::time::Duration) {
@@ -407,28 +453,14 @@ objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
         // Update local uniforms
         let mut obj_index = 0;
         for obj in &mut self.objects {
-            if(obj_index == 1){
-                obj.locals.position = [
-                obj.locals.position[0],
-                (obj.locals.position[1] + 0.001),
-                (obj.locals.position[2] - 0.001),
-                obj.locals.position[3],
-            ];
-            obj.locals.color = [
-                obj.locals.color[0],
-                (obj.locals.color[1] + 0.001),
-                (obj.locals.color[2] - 0.001),
-                obj.locals.color[3],
-            ];
+            obj.locals.position = self.physics.get_translation(obj_index);
             self
                 .uniform_pool
                 .update_uniform(obj_index, obj.locals, &self.init.queue);
                 
-            }
             obj_index += 1;
         }
-        
-        
+        self.physics.simulate();
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -568,8 +600,15 @@ pub fn run(title: &str) {
     let render_start_time: std::time::Instant = std::time::Instant::now();
 
 
-    event_loop.run(move |event, control_flow| {
+    event_loop.run(move |event, control_flow: &winit::event_loop::EventLoopWindowTarget<()>| {
         match event {
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion{ delta, },
+                .. // We're not using device_id currently
+            } => if state.mouse_pressed {
+                //state.camera_controller.process_mouse_moved(delta.0, delta.1)
+            }
+            
             Event::WindowEvent {
                 ref event,
                 window_id,
@@ -580,11 +619,13 @@ pub fn run(title: &str) {
                         //Keyboard events
                         | WindowEvent::KeyboardInput {
                             event:
+                                
                                 KeyEvent {
                                     state: ElementState::Pressed,
                                     physical_key: PhysicalKey::Code(KeyCode::Escape),
                                     ..
                                 },
+                                
                             ..
                         } => control_flow.exit(),
                         WindowEvent::Resized(physical_size) => {
