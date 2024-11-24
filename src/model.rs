@@ -29,6 +29,21 @@ pub struct Locals {
     pub lights: [f32; 4],
 
 }
+impl Locals{
+    pub fn create_transforms(&mut self,translation:[f32; 3], rotation:[f32; 3], scaling:[f32; 3]){
+
+        // create transformation matrices
+        let trans_mat = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
+        let rotate_mat_x = Matrix4::from_angle_x(Rad(rotation[0]));
+        let rotate_mat_y = Matrix4::from_angle_y(Rad(rotation[1]));
+        let rotate_mat_z = Matrix4::from_angle_z(Rad(rotation[2]));
+        let scale_mat = Matrix4::from_nonuniform_scale(scaling[0], scaling[1], scaling[2]);
+    
+        let m = (trans_mat * rotate_mat_z * rotate_mat_y * rotate_mat_x * scale_mat);
+        //unfortunately have do to this conversion to send pod to gpu
+        self.model_mat= *m.as_ref();
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
