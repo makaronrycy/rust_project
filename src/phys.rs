@@ -2,6 +2,7 @@ use std::{fmt::format, ops::Index};
 use cgmath::{self};
 use rapier3d::prelude::*;
 use nalgebra::{Vector3, vector, Vector};
+use winit::event::Force;
 
 pub struct PhysicsObj{
     name: String,
@@ -74,11 +75,20 @@ impl Physics{
     }
     pub fn get_translation(&mut self,index: usize) ->[f32;4]{
         let trans_obj = &self.bodies.get(self.physics_obj[index].handle).unwrap().translation();
-        let translation = [trans_obj.x,trans_obj.y,trans_obj.z, 1.0 ];
+        let translation =  [trans_obj.x,trans_obj.y,trans_obj.z,1.0];
         translation
     }
-
+    pub fn get_rotation(&mut self,index: usize) ->[f32;4]{
+        let rotation_obj = &self.bodies.get(self.physics_obj[index].handle).unwrap().rotation();
+        let rotation = [rotation_obj.i,rotation_obj.j,rotation_obj.k,rotation_obj.w] ;
+        rotation
+    }
+    pub fn throw_ball(&mut self,force:Vector3<f32>){
+        let body = self.bodies.get_mut(self.physics_obj[0].handle).unwrap();
+        body.apply_impulse(force, true);
+    }
     pub fn build_colliders(&mut self){
+
         let bowling_body = RigidBodyBuilder::dynamic().translation(vector![0.0,1.0,5.0]).build();
         let bowling_handle = self.bodies.insert(bowling_body);
         self.physics_obj.push(PhysicsObj{name: "bowling_ball".to_string(),handle: bowling_handle});

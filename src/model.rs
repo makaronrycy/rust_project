@@ -3,6 +3,8 @@ pub mod texture;
 use std::default;
 use std::ops::Range;
 
+use cgmath::Matrix4;
+use cgmath::Rad;
 use cgmath::Vector3;
 use cgmath::prelude::*;
 use wgpu::BindGroup;
@@ -21,10 +23,11 @@ pub struct Globals {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Locals {
-    pub position: [f32; 4],
+    pub model_mat: [f32;16],
     pub color: [f32; 4],
     pub normal: [f32; 4],
     pub lights: [f32; 4],
+
 }
 
 #[repr(C)]
@@ -325,7 +328,14 @@ pub struct Object{
 }
 impl Object{
     pub fn new(model: Model, instances: Vec<Instance>,name: String) ->Self{
-        
-        Self{model:(model),instances:(instances),id:(name), locals:(Locals { position: ([0.0, 0.0, 0.0, 0.0]),color: ([0.0, 0.0, 1.0, 1.0]),normal: ([0.0, 0.0, 0.0, 0.0]),lights: ([0.0, 0.0, 0.0, 0.0]),})}
+        let trans_mat = Matrix4::from_translation(Vector3::new(0.0, 0.0,0.0));
+        let rotate_mat_x = Matrix4::from_angle_x(Rad(0.0));
+        let rotate_mat_y = Matrix4::from_angle_y(Rad(0.0));
+        let rotate_mat_z = Matrix4::from_angle_z(Rad(0.0));
+        let scale_mat = Matrix4::from_nonuniform_scale(1.0, 1.0, 1.0);
+        let m = (trans_mat * rotate_mat_z * rotate_mat_y * rotate_mat_x * scale_mat);
+        //unfortunately have do to this conversion to send pod to gpu
+        let model_mat: [f32;16] = *m.as_ref();
+        Self{model:(model),instances:(instances),id:(name), locals:(Locals { model_mat,color: ([0.0, 0.0, 1.0, 1.0]),normal: ([0.0, 0.0, 0.0, 0.0]),lights: ([0.0, 0.0, 0.0, 0.0]),})}
     }
 }

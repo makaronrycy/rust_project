@@ -3,7 +3,6 @@ use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
-use winit::keyboard::KeyCode;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -105,41 +104,25 @@ impl CameraController {
             sensitivity,
         }
     }
-
-    pub fn process_keyboard(&mut self, key: KeyCode, state: ElementState) -> bool {
-        let amount = if state == ElementState::Pressed {
-            1.0
-        } else {
-            0.0
-        };
-        match key {
-            KeyCode::KeyW | KeyCode::ArrowUp => {
-                self.amount_forward = amount;
-                true
-            }
-            KeyCode::KeyS | KeyCode::ArrowDown => {
-                self.amount_backward = amount;
-                true
-            }
-            KeyCode::KeyA | KeyCode::ArrowLeft => {
-                self.amount_left = amount;
-                true
-            }
-            KeyCode::KeyD | KeyCode::ArrowRight => {
-                self.amount_right = amount;
-                true
-            }
-            KeyCode::Space => {
-                self.amount_up = amount;
-                true
-            }
-            KeyCode::ShiftLeft => {
-                self.amount_down = amount;
-                true
-            }
-            _ => false,
-        }
+    pub fn forward(&mut self,amount: f32){
+        self.amount_forward = amount;
     }
+    pub fn backward(&mut self,amount: f32){
+        self.amount_backward = amount;
+    }
+    pub fn left(&mut self,amount: f32){
+        self.amount_left = amount;
+    }
+    pub fn right(&mut self,amount: f32){
+        self.amount_right = amount;
+    }
+    pub fn up(&mut self,amount: f32){
+        self.amount_up = amount;
+    }
+    pub fn down(&mut self,amount: f32){
+        self.amount_down = amount;
+    }
+
 
     pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
         self.rotate_horizontal = mouse_dx as f32;

@@ -31,7 +31,8 @@ mod resources;
 
 #[path="../src/camera.rs"]
 mod camera;
-
+#[path="../src/control.rs"]
+mod control;
 #[path="../src/phys.rs"]
 mod phys;
 use resources::model::{texture::Texture, DrawModel,DrawLight,Instance, InstanceRaw, Model, ModelVertex, Vertex,Object,Globals,Locals};
@@ -80,9 +81,9 @@ impl <'a>State <'a>{
             label: Some("Normal Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
-          let camera = camera::Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
+          let camera = camera::Camera::new((0.0, 1.0, 0.0), cgmath::Deg(90.0), cgmath::Deg(0.0));
           let projection =
-              camera::Projection::new(init.config.width, init.config.height, cgmath::Deg(45.0), 0.1, 100.0);
+              camera::Projection::new(init.config.width, init.config.height, cgmath::Deg(75.0), 0.1, 100.0);
           let camera_controller = camera::CameraController::new(4.0, 0.4);
   
           let mut camera_uniform = CameraUniform::new();
@@ -331,7 +332,7 @@ impl <'a>State <'a>{
                 .unwrap();
             
         let mut ball_instances = Vec::new();
-        ball_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:1.0},rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:5.0,y:5.0,z:5.0}}});
+        ball_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:0.0},rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:5.0,y:5.0,z:5.0}}});
         let pin_instances = (0..NUMBER_OF_PINS)
         .map(|i| {
             let position = cgmath::Vector3{x: (i%4) as f32 * 0.6 - (i/4) as f32 *0.3, y:0.0, z: (i/4) as f32 * -0.8 + 10.0};
@@ -397,7 +398,7 @@ impl <'a>State <'a>{
                         ..
                     },
                 ..
-            } => self.camera_controller.process_keyboard(*key, *state),
+            } => control::process_keyboard(*key, *state, &mut self.camera_controller, &mut self.physics),
             WindowEvent::MouseWheel { delta, .. } => {
                 self.camera_controller.process_scroll(delta);
                 true
@@ -430,7 +431,10 @@ impl <'a>State <'a>{
         // Update local uniforms
         let mut obj_index = 0;
         for obj in &mut self.objects {
-            obj.locals.position = self.physics.get_translation(obj_index);
+            /*for instance in &mut obj.instances{
+                instance.position = self.physics.get_translation(obj_index);
+                instance.rotation = self.physics.get_rotation(obj_index);
+            }*/
             self
                 .uniform_pool
                 .update_uniform(obj_index, obj.locals, &self.init.queue);

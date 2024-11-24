@@ -6,7 +6,7 @@ struct Globals {
     ambient: vec4<f32>,
 };
 struct Locals {
-    position:  vec4<f32>,
+    model_mat: mat4x4<f32>,
     color:  vec4<f32>,
     normal:  vec4<f32>,
     lights:  vec4<f32>,
@@ -39,7 +39,7 @@ fn vs_main(
 ) -> VertexOutput {
     let scale = 0.25;
     var out: VertexOutput;
-    out.clip_position = globals.view_proj * vec4<f32>(model.position * scale + light.position, 1.0);
+    out.clip_position = globals.view_proj * vec4<f32>(model.position * scale + light.position, 1.0) *locals.model_mat;
     out.color = light.color;
     return out;
 }
