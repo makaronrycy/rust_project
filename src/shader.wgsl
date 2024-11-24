@@ -1,56 +1,99 @@
-// vertex shader
-//source: https://github.com/jack1232/wgpu11
-struct Uniforms {
-    model_mat : mat4x4<f32>,
-    view_project_mat : mat4x4<f32>,
-    normal_mat : mat4x4<f32>,
-};
+// Vertex shader
 
-@binding(0) @group(0) var<uniform> uniforms : Uniforms;
-
-struct Output {
-    @builtin(position) position : vec4<f32>,
-    @location(0) v_position : vec4<f32>,
-    @location(1) v_normal : vec4<f32>,
-};
-
-@vertex
-fn vs_main(@location(0) pos: vec4<f32>, @location(1) normal: vec4<f32>) -> Output {
-    var output: Output;
-    let m_position:vec4<f32> = uniforms.model_mat * pos; 
-    output.v_position = m_position;
-    output.v_normal =  uniforms.normal_mat * normal;
-    output.position = uniforms.view_project_mat * m_position;               
-    return output;
+struct Camera {
+    view_pos: vec4<f32>,
+    view_proj: mat4x4<f32>,
 }
-
-
-// fragment shader
-
-struct FragUniforms {
-    light_position : vec4<f32>,
-    eye_position : vec4<f32>,
-};
-@binding(1) @group(0) var<uniform> frag_uniforms : FragUniforms;
+@group(1) @binding(0)
+var<uniform> camera: Camera;
 
 struct LightUniforms {
-    color : vec4<f32>,
+    color : vec3<f32>,
+    position: vec3<f32>,
     specular_color : vec4<f32>,
     ambient_intensity: f32,
     diffuse_intensity :f32,
     specular_intensity: f32,
+    
     specular_shininess: f32,
-};
-@binding(2) @group(0) var<uniform> light_uniforms : LightUniforms;
+    
+}
+@group(2) @binding(0)
+var<uniform> light: LightUniforms;
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) tex_coords: vec2<f32>,
+    @location(2) normal: vec3<f32>,
+}
+struct InstanceInput {
+    @location(5) model_matrix_0: vec4<f32>,
+    @location(6) model_matrix_1: vec4<f32>,
+    @location(7) model_matrix_2: vec4<f32>,
+    @location(8) model_matrix_3: vec4<f32>,
+    @location(9) normal_matrix_0: vec3<f32>,
+    @location(10) normal_matrix_1: vec3<f32>,
+    @location(11) normal_matrix_2: vec3<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) tex_coords: vec2<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) world_position: vec3<f32>,
+}
+
+@vertex
+fn vs_main(
+    model: VertexInput,
+    instance: InstanceInput,
+) -> VertexOutput {
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+    let normal_matrix = mat3x3<f32>(
+        instance.normal_matrix_0,
+        instance.normal_matrix_1,
+        instance.normal_matrix_2,
+    );
+    var out: VertexOutput;
+    out.tex_coords = model.tex_coords;
+    out.world_normal = normal_matrix * model.normal;
+    var world_position: vec4<f32> = model_matrix * vec4<f32>(model.position, 1.0);
+    out.world_position = world_position.xyz;
+    out.clip_position = camera.view_proj * world_position;
+    return out;
+}
+
+// Fragment shader
+
+@group(0) @binding(0)
+var t_diffuse: texture_2d<f32>;
+@group(0)@binding(1)
+var s_diffuse: sampler;
 
 @fragment
-fn fs_main(@location(0) v_position: vec4<f32>, @location(1) v_normal: vec4<f32>) ->  @location(0) vec4<f32> {
-    let N:vec3<f32> = normalize(v_normal.xyz);
-    let L:vec3<f32> = normalize(frag_uniforms.light_position.xyz - v_position.xyz);
-    let V:vec3<f32> = normalize(frag_uniforms.eye_position.xyz - v_position.xyz);
-    let H:vec3<f32> = normalize(L + V);
-    let diffuse:f32 = light_uniforms.diffuse_intensity * max(dot(N, L), 0.0);
-    let specular: f32 = light_uniforms.specular_intensity * pow(max(dot(N, H),0.0), light_uniforms.specular_shininess);
-    let ambient:f32 = light_uniforms.ambient_intensity;
-    return light_uniforms.color*(ambient + diffuse) + light_uniforms.specular_color * specular;
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    
+    // We don't need (or want) much ambient light, so 0.1 is fine
+    let ambient_strength = 0.1;
+    let ambient_color = light.color * ambient_strength;
+
+    let light_dir = normalize(light.position - in.world_position);
+    let view_dir = normalize(camera.view_pos.xyz - in.world_position);
+    let half_dir = normalize(view_dir + light_dir);
+
+    let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
+    let diffuse_color = light.color * diffuse_strength;
+
+    let specular_strength = pow(max(dot(in.world_normal, half_dir), 0.0), 32.0);
+    let specular_color = specular_strength * light.color;
+
+    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
+
+    return vec4<f32>(result, object_color.a);
 }

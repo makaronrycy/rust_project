@@ -1,6 +1,7 @@
 //source: https://github.com/jack1232/wgpu11
 #![allow(dead_code)]
 use std::f32::consts::PI;
+use wgpu::InstanceFlags;
 use winit::window::Window;
 use cgmath::*;
 
@@ -12,21 +13,23 @@ pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     0.0, 0.0, 0.5, 0.0,
     0.0, 0.0, 0.5, 1.0,
 );
-pub struct InitWgpu {
+pub struct InitWgpu<'a> {
     pub instance: wgpu::Instance,
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'a>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
 }
 
-impl InitWgpu {
-    pub async fn init_wgpu(window: &Window) -> Self {
+impl <'a>InitWgpu<'a> {
+    pub async fn init_wgpu(window: &'a Window) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::DX12,
             dx12_shader_compiler: Default::default(),
+            flags: InstanceFlags::default(),
+            gles_minor_version: Default::default()
         });
         let surface = unsafe { instance.create_surface(window) }.unwrap();
         let adapter = instance
@@ -44,8 +47,9 @@ impl InitWgpu {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::default()
                 },
                 None, // Trace path
             )
@@ -60,6 +64,7 @@ impl InitWgpu {
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode:surface_caps.alpha_modes[0],
             view_formats: vec![],
+            desired_maximum_frame_latency:2
         };
         surface.configure(&device, &config);
      

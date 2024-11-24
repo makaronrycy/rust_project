@@ -1,5 +1,5 @@
 use vertex_data::{cube_normals, cube_positions};
-
+use std::env;
 
 
 mod common;
@@ -26,7 +26,6 @@ fn create_cube() -> Vec<common::Vertex> {
 
 fn main(){
     
-    let mut vertex_datas = Vec::new();
     /*
     let sphere_data1 = create_sphere(1.5, 15, 20);
     let cube_data = create_cube();
@@ -34,5 +33,7 @@ fn main(){
     vertex_datas.push(sphere_data1);
     vertex_datas.push(cube_data);
    */
-    common::run(&vertex_datas, "Bowling");
+    env::set_var("RUST_BACKTRACE", "1");
+    common::run("Bowling");
 }
+

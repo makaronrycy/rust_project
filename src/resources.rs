@@ -3,10 +3,10 @@ use std::io::{BufReader, Cursor};
 use wgpu::util::DeviceExt;
 
 
-mod model;
+pub mod model;
 use model::texture::Texture;
 pub async fn load_string(file_name: &str) -> anyhow::Result<String> {
-    let path = std::path::Path::new("../")
+    let path = std::path::Path::new(env!("OUT_DIR"))
         .join("res")
         .join(file_name);
     let txt = std::fs::read_to_string(path)?;
@@ -16,7 +16,7 @@ pub async fn load_string(file_name: &str) -> anyhow::Result<String> {
 
 
 pub async fn load_binary(file_name: &str) -> anyhow::Result<Vec<u8>> {
-    let path = std::path::Path::new("../")
+    let path = std::path::Path::new(env!("OUT_DIR"))
         .join("res")
         .join(file_name);
     let data = std::fs::read(path)?;
@@ -51,6 +51,7 @@ pub async fn load_model(
         },
         |p| async move {
             let mat_text: String = load_string(&p).await.unwrap();
+            println!("{}",mat_text);
             tobj::load_mtl_buf(&mut BufReader::new(Cursor::new(mat_text)))
         },
     )
