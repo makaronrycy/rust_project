@@ -4,6 +4,7 @@ use wgpu::util::DeviceExt;
 
 
 pub mod model;
+use model::{Instance};
 use model::texture::Texture;
 pub async fn load_string(file_name: &str) -> anyhow::Result<String> {
     let path = std::path::Path::new(env!("OUT_DIR"))
@@ -138,4 +139,23 @@ pub async fn load_model(
         .collect::<Vec<_>>();
 
     Ok(model::Model { meshes, materials })
+}
+pub fn update_instance_buffer(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    instances: &[Instance],
+) -> wgpu::Buffer {
+    let instance_data: Vec<_> = instances.iter().map(Instance::to_raw).collect();
+    let instance_buffer = device.create_buffer_init(
+        &wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX| wgpu::BufferUsages::COPY_DST,
+        }
+    );
+
+    // If the buffer needs to be updated frequently, write to the queue
+    queue.write_buffer(&instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+    
+    instance_buffer
 }

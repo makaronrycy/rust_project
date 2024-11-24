@@ -1,8 +1,9 @@
 //source: https://github.com/jack1232/wgpu11
 use std:: {iter, mem };
-use cgmath::{ Matrix, Matrix4, SquareMatrix };
+use cgmath::{ Matrix, Matrix4, SquareMatrix, Vector3 };
 use cgmath::prelude::*;
 
+use resources::update_instance_buffer;
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -27,7 +28,7 @@ mod resources;
 #[path="../src/camera.rs"]
 mod camera;
 
-use resources::model::{texture::Texture, DrawModel,DrawLight,Instance, InstanceRaw, Model, ModelVertex, Vertex};
+use resources::model::{texture::Texture, DrawModel,DrawLight,Instance, InstanceRaw, Model, ModelVertex, Vertex,};
 use camera::{CameraController,Camera,CameraUniform};
 const ANIMATION_SPEED:f32 = 1.0;
 
@@ -145,14 +146,7 @@ impl <'a>State <'a>{
                 }
             })
         }).collect::<Vec<_>>();
-        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let instance_buffer = init.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        let instance_buffer = update_instance_buffer(&init.device, &init.queue, &instances);
             
         // create fragment uniform buffer. here we set eye_position = camera_position and light_position = eye_position
         let camera_controller = CameraController::new(0.2);
@@ -321,51 +315,7 @@ impl <'a>State <'a>{
                 .unwrap();
         objects.push(obj_model1);
         objects.push(obj_model2);
-        /*for (i,vertex_data) in vertex_datas.iter().enumerate(){
-            // create vertex uniform buffer
-            // model_mat and view_projection_mat will be stored in vertex_uniform_buffer inside the update function
-            let vertex_uniform_buffer = init.device.create_buffer(&wgpu::BufferDescriptor{
-                label: Some("Vertex Uniform Buffer"),
-                size: 192,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            let uniform_bind_group = init.device.create_bind_group(&wgpu::BindGroupDescriptor{
-                layout: &uniform_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: vertex_uniform_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: fragment_uniform_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: light_uniform_buffer.as_entire_binding(),
-                    },
-                ],
-                label: Some(&format!("Uniform Bind Group {i}")),
-            });
-            
-            let vertex_buffer = init.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("Vertex Buffer {i}")),
-                contents: cast_slice(vertex_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-            let num_vertices = vertex_data.len() as u32;
-    
-            let object = Object{
-                vertex_buffer: vertex_buffer,
-                len: num_vertices,
-                model_matrix: Transform::new([0.0,0.0,0.0],[0.0,0.0,0.0], [1.0,1.0,1.0]),
-                bind_group: uniform_bind_group,
-                vertex_uniform_buffer: vertex_uniform_buffer
-            };
-            objects.push(object);  
-        }
-        */
+
         Self {
             init,
             render_pipeline,
@@ -407,7 +357,8 @@ impl <'a>State <'a>{
         //transforms on model
         
         for instance in self.instances.iter_mut(){
-            instance.position =   cgmath::Vector3::new(instance.position.x*dt,instance.position.y,instance.position.z);
+            instance.rotate(Vector3::unit_z(),dt.sin()*dt);
+            
             /*let model_mat: Matrix4<f32> = obj.model_matrix.rotate([1.0,dt.cos()*dt,1.0]);
             let view_project_mat = self.project_mat * self.view_mat;
             
@@ -422,6 +373,7 @@ impl <'a>State <'a>{
             self.init.queue.write_buffer(&obj.vertex_uniform_buffer, 128, bytemuck::cast_slice(normal_ref));*/
 
         }
+        self.instance_buffer = update_instance_buffer(&self.init.device, &self.init.queue, &self.instances);
         
     }
 
