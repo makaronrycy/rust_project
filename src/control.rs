@@ -2,10 +2,9 @@
 use rapier3d::na::vector;
 use winit::keyboard::KeyCode;
 use winit::event::*;
-use nalgebra::{Vector3, Vector};
 
-use super::{camera::CameraController, phys::Physics};
-pub fn process_keyboard(key: KeyCode, state: ElementState, camera_controller:&mut CameraController,physics: &mut Physics) -> bool {
+use super::{camera::{ Camera, CameraController}, phys::Physics};
+pub fn process_keyboard(key: KeyCode, state: ElementState, camera_controller:&mut CameraController,physics: &mut Physics,camera: &Camera) -> bool {
     let amount = if state == ElementState::Pressed {
         1.0
     } else {
@@ -37,7 +36,8 @@ pub fn process_keyboard(key: KeyCode, state: ElementState, camera_controller:&mu
             true
         }
         KeyCode::KeyE =>{
-            physics.throw_ball(vector![0.01,0.0,0.0]);
+            
+            physics.throw_ball(camera.look_direction());
             true
         }
         _ => false,

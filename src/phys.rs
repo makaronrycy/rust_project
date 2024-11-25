@@ -73,26 +73,31 @@ impl Physics{
         );
         
     }
-    pub fn get_translation(&mut self,index: usize) ->[f32;4]{
+    pub fn get_translation(&mut self,index: usize) ->[f32;3]{
+        
         let trans_obj = &self.bodies.get(self.physics_obj[index].handle).unwrap().translation();
-        let translation =  [trans_obj.x,trans_obj.y,trans_obj.z,1.0];
+        let translation =  [trans_obj.x,trans_obj.y,trans_obj.z];
+        if(index == 1) {println!("Position: {},{},{}",trans_obj.x,trans_obj.y,trans_obj.z)};
         translation
+        
     }
-    pub fn get_rotation(&mut self,index: usize) ->[f32;4]{
+    pub fn get_rotation(&mut self,index: usize) ->[f32;3]{
         let rotation_obj = &self.bodies.get(self.physics_obj[index].handle).unwrap().rotation();
-        let rotation = [rotation_obj.i,rotation_obj.j,rotation_obj.k,rotation_obj.w] ;
+        let rotation = [rotation_obj.i,rotation_obj.j,rotation_obj.k] ;
+        if(index == 1) {println!("Rotation{},{},{}",rotation_obj.i,rotation_obj.j,rotation_obj.k)};
         rotation
     }
     pub fn throw_ball(&mut self,force:Vector3<f32>){
+        println!("{}",self.physics_obj[0].name);
         let body = self.bodies.get_mut(self.physics_obj[0].handle).unwrap();
-        body.apply_impulse(force, true);
+        body.add_force(force*0.4, true);
     }
     pub fn build_colliders(&mut self){
 
-        let bowling_body = RigidBodyBuilder::dynamic().translation(vector![0.0,1.0,5.0]).build();
+        let bowling_body = RigidBodyBuilder::dynamic().translation(vector![0.0,1.0,5.0]).linear_damping(1.0).angular_damping(1.0).build();
         let bowling_handle = self.bodies.insert(bowling_body);
         self.physics_obj.push(PhysicsObj{name: "bowling_ball".to_string(),handle: bowling_handle});
-        let bowling_collider = ColliderBuilder::ball(0.3).restitution(0.8).build();
+        let bowling_collider = ColliderBuilder::ball(1.0).restitution(0.8).density(2.0).build();
         self.colliders.insert_with_parent(bowling_collider, bowling_handle, &mut self.bodies);
         
         // Create pins (10 pins in triangle formation)
@@ -103,11 +108,12 @@ impl Physics{
             let z_offset = row as f32 * - 0.8;
             
             let pin_body = RigidBodyBuilder::dynamic()
-                .translation(vector![x_offset, 1.0, z_offset + 10.0])
+                .translation(vector![x_offset, 0.0, z_offset + 5.0])
+                .angular_damping(100.0)
                 .build();
             let pin_handle = self.bodies.insert(pin_body);
-            self.physics_obj.push(PhysicsObj{name: format!("Pin{i}"),handle: bowling_handle});
-            let pin_collider = ColliderBuilder::cylinder(0.5, 0.1).restitution(0.9).build();
+            self.physics_obj.push(PhysicsObj{name: format!("Pin{i}"),handle: pin_handle});
+            let pin_collider = ColliderBuilder::cylinder(0.5, 1.0).restitution(0.9).build();
             self.colliders.insert_with_parent(pin_collider, pin_handle, &mut self.bodies);
         }
         for (i,obj) in self.physics_obj.iter().enumerate(){
@@ -116,7 +122,9 @@ impl Physics{
         }
         let floor_body = RigidBodyBuilder::fixed().translation(vector![0.0,-1.0,0.0]).build();
         let floor_handle = self.bodies.insert(floor_body);
-        let floor_collider = ColliderBuilder::cuboid(10.0, 1.0, 10.0).build();
+        let floor_collider = ColliderBuilder::cuboid(100.0, 1.0, 100.0).build();
         self.colliders.insert_with_parent(floor_collider, floor_handle, &mut self.bodies);
+        self.physics_obj.push(PhysicsObj{name: format!("Floor"),handle: floor_handle});
+
     }
 }

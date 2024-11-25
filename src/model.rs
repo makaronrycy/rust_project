@@ -39,7 +39,7 @@ impl Locals{
         let rotate_mat_z = Matrix4::from_angle_z(Rad(rotation[2]));
         let scale_mat = Matrix4::from_nonuniform_scale(scaling[0], scaling[1], scaling[2]);
     
-        let m = (trans_mat * rotate_mat_z * rotate_mat_y * rotate_mat_x * scale_mat);
+        let m = (trans_mat * rotate_mat_z * rotate_mat_y * rotate_mat_x * scale_mat)/10.0;
         //unfortunately have do to this conversion to send pod to gpu
         self.model_mat= *m.as_ref();
     }

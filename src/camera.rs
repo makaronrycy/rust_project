@@ -1,3 +1,5 @@
+
+use nalgebra;
 use cgmath::*;
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
@@ -44,6 +46,14 @@ impl Camera {
             Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
             Vector3::unit_y(),
         )
+    }
+    //Function to return a vector of the direction of camera
+    //TODO: make a conversion function between nalgebra and cgmath to avoid confusion
+    pub fn look_direction(&self)-> nalgebra::Vector3<f32>{
+        let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
+        let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
+
+        nalgebra::Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize()
     }
 }
 

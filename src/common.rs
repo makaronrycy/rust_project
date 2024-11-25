@@ -83,7 +83,7 @@ impl <'a>State <'a>{
         });
           let camera = camera::Camera::new((0.0, 1.0, 0.0), cgmath::Deg(90.0), cgmath::Deg(0.0));
           let projection =
-              camera::Projection::new(init.config.width, init.config.height, cgmath::Deg(75.0), 0.1, 100.0);
+              camera::Projection::new(init.config.width, init.config.height, cgmath::Deg(45.0), 0.1, 100.0);
           let camera_controller = camera::CameraController::new(4.0, 0.4);
   
           let mut camera_uniform = CameraUniform::new();
@@ -318,22 +318,28 @@ impl <'a>State <'a>{
         let mut objects: Vec<Object> =  Vec::new();
 
 
-
+        /*let floor_model =
+            resources::load_model("floor.obj", &init.device, &init.queue)
+                .await
+                .unwrap();
+        let mut floor_instances = Vec::new();
+        floor_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:0.0},rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:1.0,y:1.0,z:1.0}}});
+        objects.push(Object::new(floor_model, floor_instances,String::from("floor")));
+*/
         //creating objects
+       
         let ball_model =
             resources::load_model("ball.obj", &init.device, &init.queue)
                 .await
                 .unwrap();
-
         
-        let pin_model =
-            resources::load_model("pin.obj", &init.device, &init.queue)
-                .await
-                .unwrap();
+        
+        
             
         let mut ball_instances = Vec::new();
-        ball_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:0.0},rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:5.0,y:5.0,z:5.0}}});
-        let pin_instances = (0..NUMBER_OF_PINS)
+        ball_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:0.0},rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:1.0,y:1.0,z:1.0}}});
+        //Instancing... if it only worked
+        /*let pin_instances = (0..NUMBER_OF_PINS)
         .map(|i| {
             let position = cgmath::Vector3{x: (i%4) as f32 * 0.6 - (i/4) as f32 *0.3, y:0.0, z: (i/4) as f32 * -0.8 + 10.0};
 
@@ -342,10 +348,25 @@ impl <'a>State <'a>{
             let scale = cgmath::Vector3 { x: (5.0), y: (5.0), z: (5.0) };
             Instance { position, rotation,scale }
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>();*/
+        //Unfortunetly have to do this teribleness because currently it's setup that all instances receive the same transformation, and i don't have enough time
+        //Too bad!
         objects.push(Object::new(ball_model, ball_instances,String::from("Ball")));
-        objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
-
+        for i in 0..10 {
+            let row = i / 4;  // Rows
+            let col = i % 4;  // Columns
+            let x_offset = col as f32 * 0.6 - row as f32 * 0.3;
+            let z_offset = row as f32 * - 0.8;
+            //Jeez this sucks they shouldn't allow me to touch the keyboard after this
+            let pin_model =
+            resources::load_model("pin.obj", &init.device, &init.queue)
+                .await
+                .unwrap();
+            let mut pin_instances = Vec::new();
+            pin_instances.push({Instance{position:Vector3{x: x_offset,y:0.5,z:(z_offset+10.0) },rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:1.0,y:1.0,z:1.0}}});
+            objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
+            //I'm sorry
+        }
 
         println!("{}", objects.len());
         let instance_buffers = HashMap::new();
@@ -398,7 +419,7 @@ impl <'a>State <'a>{
                         ..
                     },
                 ..
-            } => control::process_keyboard(*key, *state, &mut self.camera_controller, &mut self.physics),
+            } => control::process_keyboard(*key, *state, &mut self.camera_controller, &mut self.physics,&self.camera),
             WindowEvent::MouseWheel { delta, .. } => {
                 self.camera_controller.process_scroll(delta);
                 true
@@ -431,17 +452,14 @@ impl <'a>State <'a>{
         // Update local uniforms
         let mut obj_index = 0;
         for obj in &mut self.objects {
-            /*for instance in &mut obj.instances{
-                instance.position = self.physics.get_translation(obj_index);
-                instance.rotation = self.physics.get_rotation(obj_index);
-            }*/
+            let translation = self.physics.get_translation(obj_index);
+            let rotation = self.physics.get_rotation(obj_index);
+            obj.locals.create_transforms(translation, rotation, [1.0,1.0,1.0]);
             self
                 .uniform_pool
                 .update_uniform(obj_index, obj.locals, &self.init.queue);
-                
             obj_index += 1;
         }
-        
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -617,7 +635,7 @@ pub fn run(title: &str) {
                         WindowEvent::RedrawRequested => {
                             let now = std::time::Instant::now();
                             let dt = now - last_render_time;
-                            if(dtphysics.as_secs_f32()> 0.02){
+                            if(dtphysics.as_secs_f32()> 0.0001){
                                 state.fixed_update();
                                 last_physics_sim = now;
                             } else{
