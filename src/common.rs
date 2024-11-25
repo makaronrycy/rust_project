@@ -353,17 +353,12 @@ impl <'a>State <'a>{
         //Too bad!
         objects.push(Object::new(ball_model, ball_instances,String::from("Ball")));
         for i in 0..10 {
-            let row = i / 4;  // Rows
-            let col = i % 4;  // Columns
-            let x_offset = col as f32 * 0.6 - row as f32 * 0.3;
-            let z_offset = row as f32 * - 0.8;
-            //Jeez this sucks they shouldn't allow me to touch the keyboard after this
             let pin_model =
             resources::load_model("pin.obj", &init.device, &init.queue)
                 .await
                 .unwrap();
             let mut pin_instances = Vec::new();
-            pin_instances.push({Instance{position:Vector3{x: x_offset,y:0.5,z:(z_offset+10.0) },rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:1.0,y:1.0,z:1.0}}});
+            pin_instances.push({Instance{position:Vector3{x: 0.0,y:0.0,z:0.0 },rotation:Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(0.0)),scale:Vector3{x:1.0,y:1.0,z:1.0}}});
             objects.push(Object::new(pin_model, pin_instances,String::from("Pin")));
             //I'm sorry
         }
