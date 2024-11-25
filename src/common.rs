@@ -1,5 +1,7 @@
+
 use std::default;
 //source: https://github.com/jack1232/wgpu11
+//based on https://whoisryosuke.com/blog/2022/render-pipelines-in-wgpu-and-rust#multiple-models
 use std:: {iter, mem ,collections::HashMap};
 use cgmath::{ Matrix, Matrix4, Quaternion, SquareMatrix, Vector3 };
 use cgmath::prelude::*;
@@ -21,8 +23,6 @@ use winit::{
 use wasm_bindgen::prelude::*;
 use bytemuck:: {Pod, Zeroable, cast_slice};
 use cgmath::prelude::*;
-#[path="../src/transforms.rs"]
-mod transforms;
 #[path="../src/context.rs"]
 mod context;
 
