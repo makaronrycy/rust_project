@@ -1,3 +1,6 @@
 # Projekt WNO #
 https://github.com/makaronrycy/rust_project
-Niestety na razie niedokończony projekt
+
+Niestety niekompletny projekt
+
+Aby uruchomić projekt należy w folderze z projektem użyć komendy `cargo run`
