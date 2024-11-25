@@ -77,32 +77,38 @@ impl Physics{
         
         let trans_obj = &self.bodies.get(self.physics_obj[index].handle).unwrap().translation();
         let translation =  [trans_obj.x,trans_obj.y,trans_obj.z];
-        if(index == 1) {println!("Position: {},{},{}",trans_obj.x,trans_obj.y,trans_obj.z)};
+        //if(index == 1) {println!("Position: {},{},{}",trans_obj.x,trans_obj.y,trans_obj.z)};
         translation
         
     }
     pub fn get_rotation(&mut self,index: usize) ->[f32;3]{
         let rotation_obj = &self.bodies.get(self.physics_obj[index].handle).unwrap().rotation();
         let rotation = [rotation_obj.i,rotation_obj.j,rotation_obj.k] ;
-        if(index == 1) {println!("Rotation{},{},{}",rotation_obj.i,rotation_obj.j,rotation_obj.k)};
+        //if(index == 1) {println!("Rotation{},{},{}",rotation_obj.i,rotation_obj.j,rotation_obj.k)};
         rotation
     }
     pub fn throw_ball(&mut self,force:Vector3<f32>){
         println!("{}",self.physics_obj[0].name);
+        //ball is always on index 0
         let body = self.bodies.get_mut(self.physics_obj[0].handle).unwrap();
-        body.add_force(force*0.4, true);
+        body.apply_impulse(force*0.2, true);
+    }
+    pub fn reset_ball_vel(&mut self){
+        let body = self.bodies.get_mut(self.physics_obj[0].handle).unwrap();
+        //it's waken up when we throw the ball again
+        body.sleep();
     }
     pub fn build_colliders(&mut self){
 
         let bowling_body = RigidBodyBuilder::dynamic()
-        .translation(vector![-4.0,1.0,4.0])
+        .translation(vector![-4.5,1.0,4.5])
         .sleeping(true)
         .linear_damping(0.01)
         .angular_damping(0.01)
         .build();
         let bowling_handle = self.bodies.insert(bowling_body);
         self.physics_obj.push(PhysicsObj{name: "bowling_ball".to_string(),handle: bowling_handle});
-        let bowling_collider = ColliderBuilder::ball(0.3)
+        let bowling_collider = ColliderBuilder::ball(0.2)
         .restitution(0.1)
         .density(10.0)
         .friction(0.5)
@@ -123,7 +129,7 @@ impl Physics{
                     .build();
             let pin_handle = self.bodies.insert(pin_body);
             self.physics_obj.push(PhysicsObj{name: format!("Pin{row},{col}"),handle: pin_handle});
-            let pin_collider = ColliderBuilder::cylinder(0.5, 0.15)
+            let pin_collider = ColliderBuilder::cylinder(0.38, 0.05)
                 .restitution(0.9)
                 .friction(0.4)
                 .density(2.0)

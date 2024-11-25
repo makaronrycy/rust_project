@@ -40,6 +40,11 @@ pub fn process_keyboard(key: KeyCode, state: ElementState, camera_controller:&mu
             physics.throw_ball(camera.look_direction());
             true
         }
+        KeyCode::KeyV =>{
+            
+            physics.reset_ball_vel();
+            true
+        }
         _ => false,
     }
 }
